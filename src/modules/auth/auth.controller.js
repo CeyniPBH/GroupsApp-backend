@@ -1,26 +1,31 @@
 const { Modality } = require('firebase/ai');
-const { registerUser, loginUser } = require('./auth.service');
+const User = require('../users/user.model');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
-const register = (req, res) => {
-    try {
-        const user = registerUser(req.body);
-        res.status(201).json(user);
-    } catch (error) {
-        res.status(400).json({ error: error.message });
-    }
-};
-
-const login = (req, res) => {
+const login = async (req, res) => {
     try {
         const { email, password } = req.body;
-        const user = loginUser(email, password);
-        res.json(user);
+        const user = await User.findOne({ where: { email } });
+        if (!user) {
+            return res.status(400).json({ error: 'Invalid email or password' });
+        }
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(400).json({ error: 'Invalid email or password' });
+        }
+        const token = jwt.sign(
+        { id: user.id, email: user.email }, 
+        process.env.JWT_SECRET, 
+        { expiresIn: '1h' });
+        res.json({ token });
+
+        res.json({ message: 'Login successful', token });
     }   catch (error) {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ error: 'Error logging in', details: error.message });
     }
 };
 
 module.exports = {
-    register,
     login
 };

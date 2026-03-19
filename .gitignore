@@ -1,0 +1,56 @@
+# Dependencias
+node_modules/
+package-lock.json
+yarn.lock
+
+# Variables de entorno
+.env
+.env.local
+.env.*.local
+.env.*.js
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+
+# Archivos de sistema operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs y editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Carpetas de descargas/uploads temporales
+downloads/
+uploads/
+temp/
+tmp/
+*.tmp
+
+# Cache
+.cache/
+.parcel-cache
+dist/
+build/
+
+# Testing
+.nyc_output/
+coverage/
+
+# Postman (si lo tienes local)
+postman/collections/*
+postman/environments/*
+!postman/.gitkeep
