@@ -1,4 +1,4 @@
-const User = require('./user.model');
+const { User, Group, Membership } = require('../../models');
 const bcrypt = require('bcrypt');
 
 const createUser = async (req, res) => {
@@ -15,6 +15,23 @@ const createUser = async (req, res) => {
     }
 };
 
+const getMyGroups = async (req, res) => {
+    try {
+        const user = await User.findByPk(req.user.id, {
+            include: {
+                model: Group,
+                as: 'joinedGroups',
+                attributes: ['id', 'name', 'description'],
+                through: { attributes: ['role'] }
+            }
+        });
+        res.json(user.joinedGroups);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
-    createUser
+    createUser,
+    getMyGroups
 };

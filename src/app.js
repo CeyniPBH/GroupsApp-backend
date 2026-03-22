@@ -7,7 +7,7 @@ require('./modules/users/user.model'); // Import models to initialize them
 const userRoutes = require('./modules/users/user.routes');
 const groupRoutes = require('./modules/groups/group.routes');
 require('./models'); // Import models to set up associations
-
+const membershipRoutes = require('./modules/membership/membership.routes');
 
 const app = express();
 
@@ -17,6 +17,7 @@ app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/groups", groupRoutes);
+app.use("/memberships", membershipRoutes);
 
 // Routes
 app.get('/', (req, res) => {
@@ -24,7 +25,7 @@ app.get('/', (req, res) => {
 });
 
 // Test DB connection
-sequelize.sync()
+sequelize.sync({ force: false })
   .then(() => console.log('Database connected'))
   .catch(err => console.error('Error connecting to the database:', err));
 
