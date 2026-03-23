@@ -1,5 +1,6 @@
 const { User, Group, Membership } = require('../../models');
 const bcrypt = require('bcrypt');
+const { Op } = require('sequelize');
 
 const createUser = async (req, res) => {
     try {
@@ -31,7 +32,61 @@ const getMyGroups = async (req, res) => {
     }
 };
 
+const findByHandle = async (req, res) => {
+    try {
+        const { handle } = req.body;
+
+        if (!handle || !handle.includes('#')) {
+            return res.status(400).json({ error: 'Invalid handle format. Expected format: name#tag' });
+        }
+
+        const [name, tag] = handle.split('#');
+
+        const user = await User.findOne({ 
+            where: { name, tag }, 
+            attributes: ['id', 'name', 'tag'] 
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        if (user.id == req.user.id) {
+            return res.status(400).json({ error: 'You cannot search for yourself' });
+        }
+
+        res.json({
+            id: user.id,
+            name: user.name,
+            tag: user.tag,
+            handle: `${user.name}#${user.tag}`
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+const searchByName = async (req, res) => {
+    const { q } = req.query;
+
+    try {
+        const users = await User.findAll({
+            where: {
+                name: { [Op.like]: `%${q.trim()}%` },
+                id: { [Op.ne]: req.user.id }
+            },
+            attributes: ['id', 'name', 'tag'],
+            limit: 10
+        });
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 module.exports = {
     createUser,
-    getMyGroups
+    getMyGroups,
+    findByHandle,
+    searchByName
 };

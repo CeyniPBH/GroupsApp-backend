@@ -20,9 +20,20 @@ const User = sequelize.define('User', {
         type: DataTypes.STRING,
         allowNull: false
     },
+    tag: {
+        type: DataTypes.STRING(4),
+        allowNull: false
+    },
+    status: {
+        type: DataTypes.ENUM('active', 'inactive'),
+        defaultValue: 'inactive'
+    }
 }, {
     timestamps: false,
-    tableName: 'users'
+    tableName: 'users',
+    indexes: [
+        { unique: true, fields: ['name', 'tag'] }
+    ]
 });
 
 module.exports = User;

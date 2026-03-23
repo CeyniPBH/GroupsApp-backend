@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { createUser, getMyGroups } = require('./user.controller');
+const { createUser, getMyGroups, findByHandle, searchByName } = require('./user.controller');
 const { verifyToken } = require('../auth/auth.middleware');
 
 
-router.post('/', createUser);
-router.get('/me/groups', verifyToken, getMyGroups);
+router.post('/search', verifyToken, findByHandle);
+router.get('/search/name', verifyToken, searchByName);
+router.get('/my-groups', verifyToken, getMyGroups);
 
 
 module.exports = router;
