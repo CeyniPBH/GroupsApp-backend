@@ -24,8 +24,21 @@ const createChat = async (req, res) => {
                 return res.status(404).json({ error: 'User not found' });
             }
 
+            // Verificar si ya existe un chat directo entre estos dos usuarios
+            const myChats = await ChatMember.findAll({ where: { userId } });
+            const myChatIds = myChats.map(m => m.chatId);
+            if (myChatIds.length) {
+                const shared = await ChatMember.findOne({ where: { userId: contactId, chatId: myChatIds } });
+                if (shared) {
+                    const existingChat = await Chat.findOne({ where: { id: shared.chatId, type: 'direct' } });
+                    if (existingChat) {
+                        return res.status(200).json({ id: existingChat.id, type: existingChat.type });
+                    }
+                }
+            }
+
             const chat = await Chat.create({ type: 'direct' });
-            
+
             // Agregar ambos usuarios como miembros
             await ChatMember.create({ userId, chatId: chat.id, role: 'member' });
             await ChatMember.create({ userId: contactId, chatId: chat.id, role: 'member' });
@@ -90,7 +103,7 @@ const getChats = async (req, res) => {
                     ]
                 }
             ],
-            order: [[Chat, 'lastMessageTime', 'DESC']]
+            order: [[{ model: Chat, as: 'chat' }, 'lastMessageTime', 'DESC']]
         });
 
         const chats = userChats.map(cm => ({

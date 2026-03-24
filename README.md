@@ -98,3 +98,5 @@ Importa la colección y el environment desde `postman/`:
 8. **Create/Get Groups** → Gestiona grupos
 
 Todas las requests incluyen tests automáticos para validar respuestas.
+
+### Estructura de la base de datos.

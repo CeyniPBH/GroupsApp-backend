@@ -68,7 +68,8 @@ const login = async (req, res) => {
                 tag: user.tag,
                 handle: `${user.name}#${user.tag}`,
                 email: user.email,
-                status: user.status
+                status: user.status,
+                avatar: user.avatar || null
             }
         });
 

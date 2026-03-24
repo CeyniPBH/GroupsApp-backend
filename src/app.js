@@ -19,7 +19,7 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 app.use("/auth", authRoutes);
@@ -54,7 +54,7 @@ app.get('/', (req, res) => {
 });
 
 // Test DB connection
-sequelize.sync({ force: false })
+sequelize.sync({ force: true })
   .then(() => console.log('Database connected'))
   .catch(err => console.error('Error connecting to the database:', err));
 

@@ -84,9 +84,37 @@ const searchByName = async (req, res) => {
     }
 };
 
+const updateAvatar = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        const avatarUrl = `/uploads/${req.file.filename}`;
+        await User.update({ avatar: avatarUrl }, { where: { id: req.user.id } });
+        res.json({ avatar: avatarUrl });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+const updateName = async (req, res) => {
+    try {
+        const { name } = req.body;
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: 'Name is required' });
+        }
+        await User.update({ name: name.trim() }, { where: { id: req.user.id } });
+        res.json({ name: name.trim() });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 module.exports = {
     createUser,
     getMyGroups,
     findByHandle,
-    searchByName
+    searchByName,
+    updateAvatar,
+    updateName
 };

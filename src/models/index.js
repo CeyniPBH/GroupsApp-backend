@@ -19,9 +19,16 @@ Message.belongsTo(Chat, { foreignKey: 'chatId', as: 'chat' });
 User.belongsToMany(User, { through: Contact, foreignKey: 'userId', as: 'contacts', otherKey: 'contactId' });
 User.belongsToMany(User, { through: Contact, foreignKey: 'contactId', as: 'contactedBy', otherKey: 'userId' });
 
+Contact.belongsTo(User, { foreignKey: 'userId', as: 'requester' });
+Contact.belongsTo(User, { foreignKey: 'contactId', as: 'receiver' });
+
 // ChatMembers
 User.belongsToMany(Chat, { through: ChatMember, foreignKey: 'userId', as: 'chats' });
 Chat.belongsToMany(User, { through: ChatMember, foreignKey: 'chatId', as: 'participants' });
+
+Chat.hasMany(ChatMember, { foreignKey: 'chatId', as: 'chatMembers' });
+ChatMember.belongsTo(Chat, { foreignKey: 'chatId', as: 'chat' });
+ChatMember.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 module.exports = {
     User,
