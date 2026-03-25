@@ -100,3 +100,4 @@ Importa la colección y el environment desde `postman/`:
 Todas las requests incluyen tests automáticos para validar respuestas.
 
 ### Estructura de la base de datos.
+<img width="711" height="760" alt="image" src="https://github.com/user-attachments/assets/d4b1cf75-8c4a-4dbf-8eb0-27b42f942943" />
