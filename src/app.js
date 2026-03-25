@@ -16,10 +16,15 @@ const chatRoutes = require('./modules/chats/chat.routes');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+    cors: {
+        origin: "http://localhost:5173",
+        methods: ["GET", "POST"]
+    }
+});
 
 // Middleware
-app.use(cors({ origin: "*" }));
+app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 app.use("/auth", authRoutes);
@@ -27,6 +32,7 @@ app.use("/users", userRoutes);
 app.use("/groups", groupRoutes);
 app.use("/memberships", membershipRoutes);
 app.use("/messages", messageRoutes);
+app.use("/files", messageRoutes);
 app.use("/contacts", contactRoutes);
 app.use("/chats", chatRoutes);
 
@@ -54,12 +60,12 @@ app.get('/', (req, res) => {
 });
 
 // Test DB connection
-sequelize.sync({ force: true })
+sequelize.sync()
   .then(() => console.log('Database connected'))
   .catch(err => console.error('Error connecting to the database:', err));
 
 // Port
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on http://0.0.0.0:${PORT}`);
 });

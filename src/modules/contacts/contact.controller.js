@@ -117,4 +117,27 @@ const blockContact = async (req, res) => {
     }
 };
 
-module.exports = { addContact, getContacts, acceptContact, blockContact };
+const removeContact = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+
+        const contact = await Contact.findOne({
+            where: {
+                id,
+                [Op.or]: [{ userId }, { contactId: userId }]
+            }
+        });
+
+        if (!contact) {
+            return res.status(404).json({ error: 'Contact not found' });
+        }
+
+        await contact.destroy();
+        res.json({ message: 'Contact removed' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+module.exports = { addContact, getContacts, acceptContact, blockContact, removeContact };

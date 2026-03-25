@@ -84,6 +84,20 @@ const searchByName = async (req, res) => {
     }
 };
 
+const getProfile = async (req, res) => {
+    try {
+        const user = await User.findByPk(req.user.id, {
+            attributes: ['id', 'name', 'tag', 'email', 'avatar']
+        });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 const updateAvatar = async (req, res) => {
     try {
         if (!req.file) {
@@ -115,6 +129,7 @@ module.exports = {
     getMyGroups,
     findByHandle,
     searchByName,
+    getProfile,
     updateAvatar,
     updateName
 };
