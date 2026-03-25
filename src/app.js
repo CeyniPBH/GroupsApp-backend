@@ -16,15 +16,16 @@ const chatRoutes = require('./modules/chats/chat.routes');
 
 const app = express();
 const server = http.createServer(app);
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
 const io = socketIo(server, {
     cors: {
-        origin: "http://localhost:5173",
+        origin: CORS_ORIGIN,
         methods: ["GET", "POST"]
     }
 });
 
 // Middleware
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 app.use("/auth", authRoutes);
