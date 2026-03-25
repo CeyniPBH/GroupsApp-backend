@@ -2,6 +2,62 @@
 
 Un backend monolítico para una aplicación de mensajería tipo WhatsApp/Discord.
 
+## Requisitos previos
+
+- [Node.js](https://nodejs.org/) v18 o superior
+- [npm](https://www.npmjs.com/) (incluido con Node.js)
+- [PostgreSQL](https://www.postgresql.org/) v14 o superior
+
+## Instalación y configuración
+
+### 1. Clonar el repositorio
+
+```bash
+git clone <url-del-repo>
+cd GroupsApp-back
+```
+
+### 2. Instalar dependencias
+
+```bash
+npm install
+```
+
+### 3. Configurar variables de entorno
+
+Crea un archivo `.env` en la raíz del proyecto con el siguiente contenido:
+
+```env
+PORT=3000
+CORS_ORIGIN=*
+JWT_SECRET=tu_secreto_jwt
+
+DB_NAME=groupsapp
+DB_USER=tu_usuario_postgres
+DB_PASSWORD=tu_contraseña_postgres
+DB_HOST=localhost
+```
+
+### 4. Crear la base de datos en PostgreSQL
+
+```bash
+psql -U tu_usuario_postgres -c "CREATE DATABASE groupsapp;"
+```
+
+### 5. Ejecutar el servidor
+
+```bash
+# Desarrollo (con hot reload)
+npm run dev
+
+# Producción
+npm start
+```
+
+El servidor quedará corriendo en `http://localhost:3000`.
+
+---
+
 ## Características
 
 - Autenticación de usuarios
