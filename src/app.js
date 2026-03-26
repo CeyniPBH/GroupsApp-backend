@@ -57,7 +57,7 @@ io.on('connection', (socket) => {
 
 // Routes
 app.get('/', (req, res) => {
-  res.send('Welcome to the API');
+    res.status(200).send('Welcome to the API');
 });
 
 // Test DB connection
