@@ -1,7 +1,5 @@
 # Dependencias
 node_modules/
-package-lock.json
-yarn.lock
 
 # Variables de entorno
 .env
@@ -34,7 +32,6 @@ Thumbs.db
 *~
 
 # Carpetas de descargas/uploads temporales
-node_modules/
 downloads/
 uploads/
 temp/
