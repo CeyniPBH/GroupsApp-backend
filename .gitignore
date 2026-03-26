@@ -34,6 +34,7 @@ Thumbs.db
 *~
 
 # Carpetas de descargas/uploads temporales
+node_modules/
 downloads/
 uploads/
 temp/
