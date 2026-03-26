@@ -63,7 +63,10 @@ app.get('/', (req, res) => {
 // Test DB connection
 sequelize.sync()
   .then(() => console.log('Database connected'))
-  .catch(err => console.error('Error connecting to the database:', err));
+  .catch(err => {
+      console.error('Error connecting to the database:', err);
+      process.exit(1); // Falla intencionalmente para que Docker reinicie el contenedor
+  });
 
 // Port
 const PORT = process.env.PORT || 3000;
