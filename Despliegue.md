@@ -82,8 +82,6 @@ DB_PASSWORD=password_seguro_postgres
 
 # Configuración de AWS S3 (Para subida de archivos)
 AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=tu_aws_access_key
-AWS_SECRET_ACCESS_KEY=tu_aws_secret_key
 AWS_S3_BUCKET_NAME=tu-bucket-groupsapp
 ```
 
