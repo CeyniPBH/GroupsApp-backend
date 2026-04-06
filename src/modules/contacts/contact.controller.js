@@ -1,4 +1,4 @@
-const { Contact, User, Chat } = require('../../models');
+const { Contact, User, Chat, ChatMember } = require('../../models');
 const { Op } = require('sequelize');
 
 const addContact = async (req, res) => {
@@ -42,17 +42,27 @@ const addContact = async (req, res) => {
         const contact = await Contact.create({ userId, contactId });
 
         // Crear chat directo si no existe
-        const existingChat = await Chat.findOne({
-            where: { type: 'direct' },
-            include: [
-                { model: User, as: 'participants', where: { id: [userId, contactId] }, required: true }
-            ]
-        });
+        const myChats = await ChatMember.findAll({ where: { userId } });
+        const myChatIds = myChats.map(m => m.chatId);
+        let chatExists = false;
 
-        if (!existingChat) {
+        if (myChatIds.length > 0) {
+            const directChats = await Chat.findAll({
+                where: { id: { [Op.in]: myChatIds }, type: 'direct' }
+            });
+            const directChatIds = directChats.map(c => c.id);
+            
+            if (directChatIds.length > 0) {
+                const shared = await ChatMember.findOne({ where: { userId: contactId, chatId: { [Op.in]: directChatIds } } });
+                if (shared) chatExists = true;
+            }
+        }
+
+        if (!chatExists) {
             const chat = await Chat.create({ type: 'direct' });
-            // Aquí necesitarías una tabla intermedia para miembros de chat directo, pero por simplicidad, asumimos que los miembros se manejan de otra forma.
-            // Para direct, los miembros son userId y contactId.
+            // Registrar a los miembros en la tabla intermedia
+            await ChatMember.create({ userId, chatId: chat.id, role: 'member' });
+            await ChatMember.create({ userId: contactId, chatId: chat.id, role: 'member' });
         }
 
         res.status(201).json(contact);

@@ -1,4 +1,5 @@
 const { Chat, User, Group, Message, ChatMember } = require('../../models');
+const { Op } = require('sequelize');
 
 const createChat = async (req, res) => {
     try {
@@ -28,11 +29,20 @@ const createChat = async (req, res) => {
             const myChats = await ChatMember.findAll({ where: { userId } });
             const myChatIds = myChats.map(m => m.chatId);
             if (myChatIds.length) {
-                const shared = await ChatMember.findOne({ where: { userId: contactId, chatId: myChatIds } });
-                if (shared) {
-                    const existingChat = await Chat.findOne({ where: { id: shared.chatId, type: 'direct' } });
-                    if (existingChat) {
-                        return res.status(200).json({ id: existingChat.id, type: existingChat.type });
+                // 1. Filtrar los chats que son estrictamente de tipo 'direct'
+                const directChats = await Chat.findAll({
+                    where: {
+                        id: { [Op.in]: myChatIds },
+                        type: 'direct'
+                    }
+                });
+                const directChatIds = directChats.map(c => c.id);
+                
+                if (directChatIds.length) {
+                    // 2. Verificar si el otro usuario pertenece a alguno de esos chats directos
+                    const shared = await ChatMember.findOne({ where: { userId: contactId, chatId: { [Op.in]: directChatIds } } });
+                    if (shared) {
+                        return res.status(200).json({ id: shared.chatId, type: 'direct' });
                     }
                 }
             }
