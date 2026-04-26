@@ -1,8 +1,11 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
-require('dotenv').config();
+const { createClient } = require('redis');
+const { createAdapter } = require('@socket.io/redis-adapter');
+
 const authRoutes = require('./modules/auth/auth.routes');
 const sequelize = require('./config/database');
 require('./modules/users/user.model'); // Import models to initialize them
@@ -24,6 +27,20 @@ const io = socketIo(server, {
     }
 });
 
+// Configurar clientes Redis (uno para publicar y otro para suscribirse)
+const pubClient = createClient({ 
+    url: `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}` 
+});
+const subClient = pubClient.duplicate();
+
+Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log('Redis Adapter conectado a Socket.IO exitosamente');
+}).catch(err => {
+    console.error('Error conectando Redis a Socket.IO:', err);
+    process.exit(1); // Falla intencionalmente en caso de error para que Docker/AWS reinicie el contenedor
+});
+
 // Middleware
 app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json());
@@ -33,7 +50,6 @@ app.use("/users", userRoutes);
 app.use("/groups", groupRoutes);
 app.use("/memberships", membershipRoutes);
 app.use("/messages", messageRoutes);
-app.use("/files", messageRoutes);
 app.use("/contacts", contactRoutes);
 app.use("/chats", chatRoutes);
 

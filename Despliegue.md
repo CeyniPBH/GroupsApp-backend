@@ -1,114 +1,95 @@
-# Guía de Despliegue en AWS EC2 con Docker
+# Guía de Despliegue en AWS con Auto Scaling y Docker
 
-Esta guía detalla los pasos necesarios para desplegar el backend de **GroupsApp** en una instancia EC2 de Amazon Web Services (AWS) utilizando Docker y Docker Compose.
+Esta guía detalla la arquitectura y los pasos para desplegar el backend de **GroupsApp** en un entorno de alta disponibilidad utilizando Auto Scaling Groups (ASG), Application Load Balancer (ALB) y base de datos externa.
 
 ## Arquitectura de Producción
-- **Aplicación:** Contenedor Node.js (Alpine)
-- **Base de Datos:** Contenedor PostgreSQL 14 (o Amazon RDS, si se configura externamente)
-- **Almacenamiento de Archivos:** Amazon S3 (mediante `multer-s3`)
+- **Aplicación (Backend):** Grupo de Auto Scaling con instancias EC2 corriendo la API en contenedores Docker (Stateless).
+- **Base de Datos Centralizada:** Amazon RDS (PostgreSQL) o una instancia EC2 dedicada exclusivamente a la base de datos.
+- **Almacenamiento de Archivos:** Amazon S3 (para garantizar que las imágenes de los chats estén disponibles para todas las instancias).
+- **Gestor de Estados (WebSockets):** Amazon ElastiCache o un contenedor de Redis (puede ir en la misma EC2 de la BD) para sincronizar Socket.IO entre múltiples instancias.
+- **Balanceador de Carga:** AWS Application Load Balancer (ALB) para distribuir el tráfico entre las instancias EC2 activas.
 
 ---
 
-## 1. Configuración de la Instancia EC2
+## 1. Base de Datos Centralizada
 
-1. Accede a tu consola de AWS y ve al servicio **EC2**.
-2. Lanza una nueva instancia (Launch Instance) seleccionando **Ubuntu Server 22.04 LTS** (o superior).
-3. En la sección de **Configuración de red (Security Groups)**, asegúrate de abrir los siguientes puertos:
-   - **Puerto 22 (SSH):** Para poder conectarte a la terminal del servidor (Origen: Mi IP o Anywhere).
-   - **Puerto 3000 (Custom TCP):** Para que el backend sea accesible desde el exterior (Origen: Anywhere - `0.0.0.0/0`).
+Dado que el backend escalará horizontalmente, la base de datos no puede estar acoplada a la instancia de la aplicación.
 
----
-
-## 2. Conexión e Instalación de Dependencias (Docker)
-
-Conéctate a tu instancia EC2 mediante SSH usando tu terminal:
-
-```bash
-ssh -i "tu-llave.pem" ubuntu@<IP_PUBLICA_DE_TU_EC2>
-```
-
-Una vez dentro, actualiza el sistema e instala Docker y Docker Compose:
-
-```bash
-# Actualizar los paquetes del sistema
-sudo apt-get update -y
-
-# Instalar Docker
-sudo apt-get install docker.io -y
-
-# Instalar Docker Compose
-sudo apt-get install docker-compose -y
-
-# Otorgar permisos al usuario actual para usar Docker sin "sudo"
-sudo usermod -aG docker $USER
-```
-
-*Nota: Es posible que necesites cerrar la conexión SSH (`exit`) y volver a entrar para que los cambios de permisos del usuario tengan efecto.*
+1. Crea una instancia de **Amazon RDS para PostgreSQL** (Recomendado para producción) O lanza un EC2 estático que ejecute únicamente el archivo `docker-compose.yml` de la base de datos.
+2. Asegúrate de que el **Security Group** de la base de datos permita tráfico entrante en el puerto `5432` desde el Security Group que tendrán tus instancias del Auto Scaling.
+3. Copia el **Endpoint** (Host) proporcionado, lo necesitarás para las variables de entorno.
 
 ---
 
-## 3. Descarga del Código
+## 2. Configurar IAM Role (Perfil de Instancia)
 
-Clona el repositorio en tu instancia EC2:
+Tus instancias EC2 necesitarán permisos para subir archivos a Amazon S3 sin usar credenciales en texto plano.
 
-```bash
-git clone <URL_DE_TU_REPOSITORIO>
-cd GroupsApp-backend
-```
+1. Ve a **IAM > Roles** en AWS y crea un nuevo rol para el servicio **EC2**.
+2. Adjunta las políticas `AmazonS3FullAccess` (para subir archivos) y `AmazonEC2ContainerRegistryReadOnly` (para que las instancias puedan descargar tu imagen privada desde AWS ECR).
+3. Ponle un nombre al rol (ej. `GroupsApp-EC2-S3-Role`). Se lo asignaremos a la Plantilla de Lanzamiento en el siguiente paso.
 
 ---
 
-## 4. Configuración de Variables de Entorno
+## 3. Configurar la Plantilla de Lanzamiento (Launch Template)
 
-Crea el archivo `.env` en la raíz del proyecto para definir las credenciales de producción.
+Para el Auto Scaling, AWS creará servidores automáticamente. Para que estas instancias se configuren solas al nacer, usaremos un script de **User Data**.
+
+1. Ve a EC2 > **Launch Templates** > Create Launch Template.
+2. Elige la AMI (ej. Ubuntu 22.04) y el tipo de instancia (ej. t2.micro).
+3. En la sección **Advanced Details > IAM instance profile**, selecciona el rol que creaste en el paso anterior (`GroupsApp-EC2-S3-Role`).
+4. En **Security Groups**, permite el puerto 22 (SSH) y el puerto `3000` (al que apuntará el Load Balancer).
+5. Ve al fondo hasta **User Data** y pega el siguiente script de inicio automático:
 
 ```bash
-nano .env
-```
+#!/bin/bash
+# 1. Actualizar e instalar Docker y AWS CLI
+apt-get update -y
+apt-get install docker.io awscli -y
+systemctl start docker
+systemctl enable docker
 
-Pega el siguiente contenido y reemplaza los valores con tu información real (especialmente los de AWS S3 y JWT):
+cd /home/ubuntu
 
-```env
-# Configuración del Servidor
+# 2. Crear el archivo de variables de entorno (.env)
+# NOTA: En un entorno estricto, estos valores se traen de AWS Secrets Manager.
+cat <<EOF > .env
 PORT=3000
 CORS_ORIGIN=*
-JWT_SECRET=tu_secreto_jwt_super_seguro_produccion
-
-# Configuración de Base de Datos (Docker local)
-DB_HOST=db
+JWT_SECRET=tu_secreto_jwt_super_seguro
+DB_HOST=<ENDPOINT_DE_TU_RDS_O_DB_EXTERNA>
 DB_NAME=groupsapp
 DB_USER=postgres
 DB_PASSWORD=password_seguro_postgres
-
-# Configuración de AWS S3 (Para subida de archivos)
 AWS_REGION=us-east-1
 AWS_S3_BUCKET_NAME=tu-bucket-groupsapp
-```
+REDIS_HOST=<IP_DE_TU_INSTANCIA_REDIS_O_ELASTICACHE>
+REDIS_PORT=6379
+EOF
 
-Guarda el archivo presionando `Ctrl+O`, `Enter` y luego sal de nano con `Ctrl+X`.
+# 3. Autenticarse en ECR y descargar la imagen del backend (reemplaza TU_ACCOUNT_ID por tu ID de cuenta AWS)
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
+docker pull <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest
 
----
-
-## 5. Levantar los Servicios
-
-Con todo configurado, utiliza Docker Compose para construir la imagen de la aplicación y levantar los contenedores (Base de datos y API) en segundo plano (`-d`):
-
-```bash
-docker-compose up -d --build
-```
-
-Para verificar que los contenedores están corriendo correctamente:
-
-```bash
-docker-compose ps
+# 4. Ejecutar la imagen Docker
+docker run -d --name groupsapp-api -p 3000:3000 --env-file .env --restart always <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest
 ```
 
 ---
 
-## 6. Verificación (Health Check)
+## 4. Balanceador de Carga y Auto Scaling Group
 
-Para comprobar que la API está funcionando, abre tu navegador web o usa una herramienta como Postman o cURL apuntando a la IP pública de tu EC2 en el puerto 3000:
+1. Crea un **Application Load Balancer (ALB)** escuchando en el puerto `80` o `443` (HTTP/HTTPS).
+2. Configura su *Target Group* para enrutar el tráfico al puerto `3000` de las instancias.
+   - **Importante:** En los atributos del Target Group, busca y activa **Stickiness (Sticky Sessions)**. Esto es fundamental para evitar que el balanceador desconecte intermitentemente los WebSockets de los clientes.
+3. Crea un **Auto Scaling Group (ASG)** vinculando tu *Launch Template* recién creada.
+4. Selecciona el *Target Group* del ALB para adjuntarlo al ASG.
+5. Define tus políticas de escalado (ej: si CPU > 70%, crear una nueva máquina).
 
-`http://<IP_PUBLICA_DE_TU_EC2>:3000/`
+---
 
-Deberías recibir la respuesta: `Welcome to the API` (con código de estado 200 OK).
+## 5. Verificación
+
+Copia el **DNS name** público de tu Application Load Balancer. Las peticiones enviadas allí serán balanceadas de forma automática hacia cualquier instancia EC2 que el Auto Scaling Group haya lanzado. 
+
+Todas las instancias compartirán el mismo Bucket S3 para archivos multimedia y consultarán la misma Base de Datos PostgreSQL, logrando verdadera alta disponibilidad.

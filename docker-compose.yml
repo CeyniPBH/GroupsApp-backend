@@ -13,23 +13,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  app:
+  redis:
     restart: always
-    build: .
+    image: redis:7-alpine
     ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-      - CORS_ORIGIN=${CORS_ORIGIN:-*}
-      - JWT_SECRET=${JWT_SECRET:-tu_secreto_jwt}
-      - DB_NAME=${DB_NAME:-groupsapp}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
-      - DB_HOST=db
-      - AWS_REGION=${AWS_REGION}
-      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
-    depends_on:
-      - db
+      - "6379:6379"
 
 volumes:
   postgres_data:

@@ -120,8 +120,8 @@ const getChats = async (req, res) => {
             id: cm.chat.id,
             type: cm.chat.type,
             name: cm.chat.name,
-            lastMessage: cm.chat.lastMessage,
-            lastMessageTime: cm.chat.lastMessageTime
+            lastMessage: (cm.chat.messages && cm.chat.messages.length > 0) ? cm.chat.messages[0].content : cm.chat.lastMessage,
+            lastMessageTime: (cm.chat.messages && cm.chat.messages.length > 0) ? cm.chat.messages[0].createdAt : cm.chat.lastMessageTime
         }));
 
         res.json(chats);

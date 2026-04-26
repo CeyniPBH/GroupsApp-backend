@@ -1,23 +1,20 @@
-# Usamos una imagen ligera de Node.js versión 18
+# Usar una imagen base ligera de Node.js (Alpine)
 FROM node:18-alpine
 
-# Establecemos el directorio de trabajo dentro del contenedor
-WORKDIR /usr/src/app
+# Establecer el directorio de trabajo dentro del contenedor
+WORKDIR /app
 
-# Copiamos los archivos de dependencias primero para aprovechar el caché de Docker
+# Copiar los archivos de dependencias (package.json y package-lock.json si existe)
 COPY package*.json ./
 
-# Instalamos solo las dependencias de producción
-RUN npm install --omit=dev
+# Instalar solo las dependencias necesarias para producción
+RUN npm install --production
 
-# Copiamos el resto del código de la aplicación
+# Copiar el resto del código fuente de la aplicación
 COPY . .
 
-# Nos aseguramos de que exista el directorio de uploads
-RUN mkdir -p uploads
-
-# Exponemos el puerto en el que corre la aplicación
+# Exponer el puerto en el que corre la API (según tu .env)
 EXPOSE 3000
 
-# Comando para iniciar la aplicación
+# Definir el comando para iniciar el servidor
 CMD ["npm", "start"]
