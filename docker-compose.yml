@@ -1,23 +1,81 @@
 version: '3.8'
 
 services:
-  db:
-    restart: always
-    image: postgres:14-alpine
-    environment:
-      POSTGRES_DB: ${DB_NAME:-groupsapp}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
+  # 2. Redis para Socket.IO
   redis:
-    restart: always
-    image: redis:7-alpine
+    image: redis:alpine
     ports:
       - "6379:6379"
+    networks:
+      - groupsapp-network
 
-volumes:
-  postgres_data:
+  auth-service:
+    build: .
+    command: node src/grpc/auth_standalone.js
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - AUTH_GRPC_PORT=50052
+    networks:
+      - groupsapp-network
+
+  # 3. Microservicio de Usuarios (gRPC)
+  users-service:
+    build: .
+    command: node src/grpc/standalone.js  # Ejecuta solo el servidor gRPC
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - GRPC_PORT=50051
+    networks:
+      - groupsapp-network
+
+  # 5. Microservicio de Chats (gRPC)
+  chats-service:
+    build: .
+    command: node src/grpc/chat_standalone.js
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - CHAT_GRPC_PORT=50053
+      - GRPC_HOST=users-service     # Fundamental: Esto le permite a Chats contactar a Users por gRPC
+    depends_on:
+      - users-service
+    networks:
+      - groupsapp-network
+
+  # 4. API Principal (Express + WebSockets)
+  api:
+    build: .
+    command: npm start
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - REDIS_HOST=redis
+      - GRPC_HOST=users-service     # Apunta al nombre del contenedor gRPC
+      - AUTH_GRPC_HOST=auth-service   # Apunta al contenedor de Auth
+      - AUTH_GRPC_PORT=50052
+      - CHAT_GRPC_HOST=chats-service # Apunta al contenedor de Chats
+      - CHAT_GRPC_PORT=50053
+      - RUN_INTERNAL_GRPC=false     # Le dice a app.js que NO inicie el gRPC localmente
+    depends_on:
+      - users-service
+      - auth-service
+      - chats-service
+      - redis
+    networks:
+      - groupsapp-network
+
+networks:
+  groupsapp-network:
+    driver: bridge

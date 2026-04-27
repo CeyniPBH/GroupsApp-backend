@@ -1,132 +1,31 @@
-const { Chat, User, Group, Message, ChatMember } = require('../../models');
-const { Op } = require('sequelize');
+const { createChatViaGrpc, getChatsViaGrpc } = require('../../grpc/client');
+const grpc = require('@grpc/grpc-js');
 
 const createChat = async (req, res) => {
     try {
         const { type, name, participantIds } = req.body;
         const userId = req.user.id;
 
-        // Validar parámetros requeridos
-        if (!type) {
-            return res.status(400).json({ error: 'Type is required (direct or group)' });
-        }
-
-        if (type === 'direct') {
-            // Para direct, participantIds debería tener al menos un ID
-            if (!participantIds || participantIds.length === 0) {
-                return res.status(400).json({ error: 'participantIds is required for direct chat' });
-            }
-
-            const contactId = participantIds[0];
-
-            // Verificar que el otro usuario existe
-            const otherUser = await User.findByPk(contactId);
-            if (!otherUser) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-
-            // Verificar si ya existe un chat directo entre estos dos usuarios
-            const myChats = await ChatMember.findAll({ where: { userId } });
-            const myChatIds = myChats.map(m => m.chatId);
-            if (myChatIds.length) {
-                // 1. Filtrar los chats que son estrictamente de tipo 'direct'
-                const directChats = await Chat.findAll({
-                    where: {
-                        id: { [Op.in]: myChatIds },
-                        type: 'direct'
-                    }
-                });
-                const directChatIds = directChats.map(c => c.id);
-                
-                if (directChatIds.length) {
-                    // 2. Verificar si el otro usuario pertenece a alguno de esos chats directos
-                    const shared = await ChatMember.findOne({ where: { userId: contactId, chatId: { [Op.in]: directChatIds } } });
-                    if (shared) {
-                        return res.status(200).json({ id: shared.chatId, type: 'direct' });
-                    }
-                }
-            }
-
-            const chat = await Chat.create({ type: 'direct' });
-
-            // Agregar ambos usuarios como miembros
-            await ChatMember.create({ userId, chatId: chat.id, role: 'member' });
-            await ChatMember.create({ userId: contactId, chatId: chat.id, role: 'member' });
-            
-            res.status(201).json({
-                id: chat.id,
-                type: chat.type,
-                participants: [userId, contactId],
-                createdAt: chat.createdAt
-            });
-        } else if (type === 'group') {
-            // Para grupos, nombre es obligatorio
-            if (!name) {
-                return res.status(400).json({ error: 'Name is required for group chat' });
-            }
-
-            const chat = await Chat.create({ 
-                type: 'group', 
-                name 
-            });
-
-            // Agregar creador como admin
-            await ChatMember.create({ userId, chatId: chat.id, role: 'admin' });
-
-            // Agregar otros participantes si existen
-            if (participantIds && participantIds.length > 0) {
-                for (const memberId of participantIds) {
-                    if (memberId !== userId) {
-                        await ChatMember.create({ userId: memberId, chatId: chat.id, role: 'member' });
-                    }
-                }
-            }
-
-            res.status(201).json({
-                id: chat.id,
-                type: chat.type,
-                name: chat.name,
-                creator: userId,
-                createdAt: chat.createdAt
-            });
-        } else {
-            return res.status(400).json({ error: 'Type must be "direct" or "group"' });
-        }
+        const response = await createChatViaGrpc(type, name, participantIds, userId);
+        res.status(201).json(response);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        if (error.code === grpc.status.INVALID_ARGUMENT) {
+            return res.status(400).json({ error: error.details });
+        }
+        if (error.code === grpc.status.NOT_FOUND) {
+            return res.status(404).json({ error: error.details });
+        }
+        res.status(500).json({ error: error.details || error.message });
     }
 };
 
 const getChats = async (req, res) => {
     try {
         const userId = req.user.id;
-        
-        // Obtener chats del usuario actual
-        const userChats = await ChatMember.findAll({
-            where: { userId },
-            include: [
-                {
-                    model: Chat,
-                    as: 'chat',
-                    include: [
-                        { model: Message, as: 'messages', limit: 1, order: [['createdAt', 'DESC']] }
-                    ]
-                }
-            ],
-            order: [[{ model: Chat, as: 'chat' }, 'lastMessageTime', 'DESC']]
-        });
-
-        const chats = userChats.map(cm => ({
-            id: cm.chat.id,
-            type: cm.chat.type,
-            name: cm.chat.name,
-            lastMessage: (cm.chat.messages && cm.chat.messages.length > 0) ? cm.chat.messages[0].content : cm.chat.lastMessage,
-            lastMessageTime: (cm.chat.messages && cm.chat.messages.length > 0) ? cm.chat.messages[0].createdAt : cm.chat.lastMessageTime
-        }));
-
+        const chats = await getChatsViaGrpc(userId);
         res.json(chats);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: error.details || error.message });
     }
 };
 

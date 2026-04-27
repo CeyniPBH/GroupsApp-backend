@@ -16,6 +16,9 @@ const membershipRoutes = require('./modules/membership/membership.routes');
 const messageRoutes = require('./modules/messages/message.routes');
 const contactRoutes = require('./modules/contacts/contact.routes');
 const chatRoutes = require('./modules/chats/chat.routes');
+const { startGrpcServer } = require('./grpc/server');
+const { startAuthGrpcServer } = require('./grpc/auth_server');
+const { startChatGrpcServer } = require('./grpc/chat_server');
 
 const app = express();
 const server = http.createServer(app);
@@ -76,9 +79,27 @@ app.get('/', (req, res) => {
     res.status(200).send('Welcome to the API');
 });
 
+// Health check endpoint para Kubernetes (Liveness/Readiness Probes)
+app.get('/health', async (req, res) => {
+    try {
+        await sequelize.authenticate();
+        res.status(200).json({ status: 'UP', database: 'connected' });
+    } catch (error) {
+        console.error('Healthcheck failed:', error);
+        res.status(500).json({ status: 'DOWN', database: 'disconnected' });
+    }
+});
+
 // Test DB connection
 sequelize.sync()
-  .then(() => console.log('Database connected'))
+  .then(() => {
+      console.log('Database connected');
+      if (process.env.RUN_INTERNAL_GRPC !== 'false') {
+          startGrpcServer(); // Iniciar servidor gRPC de Usuarios
+          startAuthGrpcServer(); // Iniciar servidor gRPC de Auth
+          startChatGrpcServer(); // Iniciar servidor gRPC de Chats
+      }
+  })
   .catch(err => {
       console.error('Error connecting to the database:', err);
       process.exit(1); // Falla intencionalmente para que Docker reinicie el contenedor
@@ -89,3 +110,24 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${PORT}`);
 });
+
+// Manejo de señales de apagado para Kubernetes (Graceful Shutdown)
+const gracefulShutdown = () => {
+    console.log('Señal de apagado recibida (SIGTERM/SIGINT). Preparando cierre seguro...');
+    server.close(async () => {
+        console.log('Se dejaron de aceptar nuevas peticiones HTTP.');
+        try {
+            // Cerrar conexiones persistentes
+            await sequelize.close();
+            await pubClient.quit();
+            await subClient.quit();
+            console.log('Conexiones a BD y Redis cerradas exitosamente. Saliendo...');
+            process.exit(0);
+        } catch (error) {
+            console.error('Error al cerrar conexiones durante el apagado:', error);
+            process.exit(1);
+        }
+    });
+};
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);

@@ -71,8 +71,16 @@ EOF
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
 docker pull <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest
 
-# 4. Ejecutar la imagen Docker
-docker run -d --name groupsapp-api -p 3000:3000 --env-file .env --restart always <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest
+# 4. Crear red interna de Docker para comunicación entre microservicios
+docker network create groupsapp-network
+
+# 5. Ejecutar los Microservicios gRPC (usando la misma imagen pero diferentes comandos)
+docker run -d --name users-service --network groupsapp-network --env-file .env -e GRPC_PORT=50051 --restart always <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest node src/grpc/standalone.js
+docker run -d --name auth-service --network groupsapp-network --env-file .env -e AUTH_GRPC_PORT=50052 --restart always <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest node src/grpc/auth_standalone.js
+docker run -d --name chats-service --network groupsapp-network --env-file .env -e CHAT_GRPC_PORT=50053 -e GRPC_HOST=users-service --restart always <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest node src/grpc/chat_standalone.js
+
+# 6. Ejecutar la API Principal (Actúa como API Gateway hacia el exterior)
+docker run -d --name groupsapp-api -p 3000:3000 --network groupsapp-network --env-file .env -e GRPC_HOST=users-service -e AUTH_GRPC_HOST=auth-service -e AUTH_GRPC_PORT=50052 -e CHAT_GRPC_HOST=chats-service -e CHAT_GRPC_PORT=50053 -e RUN_INTERNAL_GRPC=false --restart always <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest npm start
 ```
 
 ---

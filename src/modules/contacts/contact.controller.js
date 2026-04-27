@@ -1,5 +1,6 @@
-const { Contact, User, Chat, ChatMember } = require('../../models');
+const { Contact } = require('../../models');
 const { Op } = require('sequelize');
+const { getUserViaGrpc, createChatViaGrpc } = require('../../grpc/client');
 
 const addContact = async (req, res) => {
     try {
@@ -8,6 +9,12 @@ const addContact = async (req, res) => {
 
         if (userId === contactId) {
             return res.status(400).json({ error: 'Cannot add yourself as contact' });
+        }
+
+        // Validar que el usuario que intentamos agregar realmente exista utilizando la llamada gRPC
+        const contactUser = await getUserViaGrpc(contactId);
+        if (!contactUser) {
+            return res.status(404).json({ error: 'Contact user not found' });
         }
 
         // Si ya existe una solicitud en cualquier estado
@@ -41,29 +48,8 @@ const addContact = async (req, res) => {
 
         const contact = await Contact.create({ userId, contactId });
 
-        // Crear chat directo si no existe
-        const myChats = await ChatMember.findAll({ where: { userId } });
-        const myChatIds = myChats.map(m => m.chatId);
-        let chatExists = false;
-
-        if (myChatIds.length > 0) {
-            const directChats = await Chat.findAll({
-                where: { id: { [Op.in]: myChatIds }, type: 'direct' }
-            });
-            const directChatIds = directChats.map(c => c.id);
-            
-            if (directChatIds.length > 0) {
-                const shared = await ChatMember.findOne({ where: { userId: contactId, chatId: { [Op.in]: directChatIds } } });
-                if (shared) chatExists = true;
-            }
-        }
-
-        if (!chatExists) {
-            const chat = await Chat.create({ type: 'direct' });
-            // Registrar a los miembros en la tabla intermedia
-            await ChatMember.create({ userId, chatId: chat.id, role: 'member' });
-            await ChatMember.create({ userId: contactId, chatId: chat.id, role: 'member' });
-        }
+        // Delegar la creación/verificación del chat directo al microservicio de Chats vía gRPC
+        await createChatViaGrpc('direct', '', [contactId], userId);
 
         res.status(201).json(contact);
     } catch (error) {
@@ -77,19 +63,17 @@ const getContacts = async (req, res) => {
         const contacts = await Contact.findAll({
             where: {
                 [Op.or]: [{ userId }, { contactId: userId }]
-            },
-            include: [
-                { model: User, as: 'requester', attributes: ['id', 'name', 'tag'] },
-                { model: User, as: 'receiver', attributes: ['id', 'name', 'tag'] }
-            ]
+            }
         });
 
-        const result = contacts.map(c => {
+        const result = await Promise.all(contacts.map(async (c) => {
             const plain = c.toJSON();
-            // contactedBy = el otro usuario (no yo)
-            plain.contactedBy = plain.userId === userId ? plain.receiver : plain.requester;
+            const contactedById = plain.userId === userId ? plain.contactId : plain.userId;
+            const contactedUser = await getUserViaGrpc(contactedById);
+            
+            plain.contactedBy = contactedUser ? { id: contactedUser.id, name: contactedUser.name, tag: contactedUser.tag } : null;
             return plain;
-        });
+        }));
 
         res.json(result);
     } catch (error) {
