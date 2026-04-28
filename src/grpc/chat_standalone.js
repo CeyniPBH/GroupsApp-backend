@@ -3,7 +3,9 @@ const sequelize = require('../config/database');
 require('../models'); // Importar los modelos para sus asociaciones
 const { startChatGrpcServer } = require('./chat_server');
 
-sequelize.sync()
+const dbConnect = process.env.NODE_ENV === 'development' ? sequelize.sync() : sequelize.authenticate();
+
+dbConnect
   .then(() => {
       console.log('Database connected for gRPC Chat Service');
       startChatGrpcServer();

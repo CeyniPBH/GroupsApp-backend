@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 2. Redis para Socket.IO
   redis:

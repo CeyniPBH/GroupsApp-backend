@@ -91,7 +91,9 @@ app.get('/health', async (req, res) => {
 });
 
 // Test DB connection
-sequelize.sync()
+const dbConnect = process.env.NODE_ENV === 'development' ? sequelize.sync() : sequelize.authenticate();
+
+dbConnect
   .then(() => {
       console.log('Database connected');
       if (process.env.RUN_INTERNAL_GRPC !== 'false') {

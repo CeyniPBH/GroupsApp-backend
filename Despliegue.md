@@ -45,7 +45,7 @@ Para el Auto Scaling, AWS creará servidores automáticamente. Para que estas in
 #!/bin/bash
 # 1. Actualizar e instalar Docker y AWS CLI
 apt-get update -y
-apt-get install docker.io awscli -y
+apt-get install docker.io docker-compose awscli -y
 systemctl start docker
 systemctl enable docker
 
@@ -54,6 +54,7 @@ cd /home/ubuntu
 # 2. Crear el archivo de variables de entorno (.env)
 # NOTA: En un entorno estricto, estos valores se traen de AWS Secrets Manager.
 cat <<EOF > .env
+NODE_ENV=production
 PORT=3000
 CORS_ORIGIN=*
 JWT_SECRET=tu_secreto_jwt_super_seguro
@@ -65,22 +66,72 @@ AWS_REGION=us-east-1
 AWS_S3_BUCKET_NAME=tu-bucket-groupsapp
 REDIS_HOST=<IP_DE_TU_INSTANCIA_REDIS_O_ELASTICACHE>
 REDIS_PORT=6379
+DOCKER_IMAGE=<TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest
 EOF
 
 # 3. Autenticarse en ECR y descargar la imagen del backend (reemplaza TU_ACCOUNT_ID por tu ID de cuenta AWS)
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
 docker pull <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest
 
-# 4. Crear red interna de Docker para comunicación entre microservicios
-docker network create groupsapp-network
+# 4. Crear el archivo docker-compose.yml local en la instancia
+cat <<'EOF_COMPOSE' > docker-compose.yml
+version: '3.8'
+services:
+  users-service:
+    image: ${DOCKER_IMAGE}
+    command: node src/grpc/standalone.js
+    env_file: .env
+    environment:
+      - GRPC_PORT=50051
+    networks:
+      - groupsapp-network
+    restart: always
 
-# 5. Ejecutar los Microservicios gRPC (usando la misma imagen pero diferentes comandos)
-docker run -d --name users-service --network groupsapp-network --env-file .env -e GRPC_PORT=50051 --restart always <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest node src/grpc/standalone.js
-docker run -d --name auth-service --network groupsapp-network --env-file .env -e AUTH_GRPC_PORT=50052 --restart always <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest node src/grpc/auth_standalone.js
-docker run -d --name chats-service --network groupsapp-network --env-file .env -e CHAT_GRPC_PORT=50053 -e GRPC_HOST=users-service --restart always <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest node src/grpc/chat_standalone.js
+  auth-service:
+    image: ${DOCKER_IMAGE}
+    command: node src/grpc/auth_standalone.js
+    env_file: .env
+    environment:
+      - AUTH_GRPC_PORT=50052
+    networks:
+      - groupsapp-network
+    restart: always
 
-# 6. Ejecutar la API Principal (Actúa como API Gateway hacia el exterior)
-docker run -d --name groupsapp-api -p 3000:3000 --network groupsapp-network --env-file .env -e GRPC_HOST=users-service -e AUTH_GRPC_HOST=auth-service -e AUTH_GRPC_PORT=50052 -e CHAT_GRPC_HOST=chats-service -e CHAT_GRPC_PORT=50053 -e RUN_INTERNAL_GRPC=false --restart always <TU_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/groupsapp-backend:latest npm start
+  chats-service:
+    image: ${DOCKER_IMAGE}
+    command: node src/grpc/chat_standalone.js
+    env_file: .env
+    environment:
+      - CHAT_GRPC_PORT=50053
+      - GRPC_HOST=users-service
+    networks:
+      - groupsapp-network
+    restart: always
+
+  api:
+    image: ${DOCKER_IMAGE}
+    command: npm start
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      - GRPC_HOST=users-service
+      - AUTH_GRPC_HOST=auth-service
+      - AUTH_GRPC_PORT=50052
+      - CHAT_GRPC_HOST=chats-service
+      - CHAT_GRPC_PORT=50053
+      - RUN_INTERNAL_GRPC=false
+    networks:
+      - groupsapp-network
+    restart: always
+
+networks:
+  groupsapp-network:
+    driver: bridge
+EOF_COMPOSE
+
+# 5. Desplegar todo usando Docker Compose
+docker-compose up -d
 ```
 
 ---

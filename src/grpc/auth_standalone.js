@@ -3,7 +3,9 @@ const sequelize = require('../config/database');
 require('../modules/users/user.model');
 const { startAuthGrpcServer } = require('./auth_server');
 
-sequelize.sync()
+const dbConnect = process.env.NODE_ENV === 'development' ? sequelize.sync() : sequelize.authenticate();
+
+dbConnect
   .then(() => {
       console.log('Database connected for gRPC Auth Service');
       startAuthGrpcServer();
