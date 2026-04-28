@@ -64,9 +64,8 @@ El servidor quedará corriendo en `http://localhost:3000`.
 - Búsqueda de usuarios por nickname y tag
 - Sistema de contactos (amigos)
 - Chats individuales y grupales
-- Mensajes con soporte multimedia (imágenes, archivos, audio, video)
-- Comunicación en tiempo real con Socket.IO
-- Grupos con membresías y roles
+- **Almacenamiento Cloud:** Integración nativa con Amazon S3 para los archivos.
+- **Arquitectura Distribuida:** Microservicios comunicados vía gRPC y sincronización de WebSockets entre instancias mediante Redis Pub/Sub.
 
 ## Estructura del Proyecto
 
@@ -74,7 +73,9 @@ El servidor quedará corriendo en `http://localhost:3000`.
 src/
 ├── app.js                 # Configuración principal del servidor
 ├── config/
-│   └── database.js        # Configuración de base de datos
+│   ├── database.js        # Configuración de base de datos
+│   └── s3.js              # Integración con AWS
+├── grpc/                  # Microservicios TCP y clientes gRPC (Users, Auth, Chats)
 ├── models/
 │   ├── index.js           # Asociaciones de modelos
 │   ├── chat.model.js      # Modelo Chat
