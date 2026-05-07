@@ -7,7 +7,7 @@ Este documento es el manifiesto técnico del backend de **GroupsApp**. Detalla l
 ## 1. Propósito del Sistema (Domain)
 
 **GroupsApp** es una plataforma de mensajería en tiempo real estructurada con soporte para interacciones uno-a-uno y comunidades (estilo WhatsApp/Discord). Sus capacidades centrales incluyen:
-- **Sistema de Identidad:** Usuarios únicos identificados por un nombre y un tag (ej. `johan#1234`).
+- **Sistema de Identidad:** Usuarios únicos identificados por un nombre y un tag (ej. `user#1234`).
 - **Grafos de Relación:** Sistema de solicitudes de amistad (Contacts) con estados de `pending`, `accepted` y `blocked`.
 - **Comunicaciones Híbridas:** Chats Directos (DM) y Grupos con sistema de membresías y roles (Admin/Member).
 - **Multimedia:** Envío de mensajes de texto y archivos adjuntos (imágenes/documentos) almacenados en la nube.

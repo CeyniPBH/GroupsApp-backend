@@ -21,6 +21,10 @@ const { startAuthGrpcServer } = require('./grpc/auth_server');
 const { startChatGrpcServer } = require('./grpc/chat_server');
 
 const app = express();
+
+// Indispensable para AWS: Confiar en el proxy (ALB) para obtener la IP real del cliente
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
 const io = socketIo(server, {
