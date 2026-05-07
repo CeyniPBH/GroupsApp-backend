@@ -35,11 +35,7 @@ A Node.js backend for a group messaging app (similar to WhatsApp), handling auth
     - `models:` Sequelize ORM models (users, chats, messages, etc.).
     - `grpc:` gRPC servers and clients for real-time communication.
     - `database.js:` Database connection.
-- **How It Works:**
-  1. Run `npm start` to start the server.
-  2. Handles user auth, chat creation, messaging via REST and gRPC.
-  3. All logic in one process; scales vertically.
-- **Limitations:** No containerization, dependencies in repo (`node_modules/`), basic deployment.
+- **[How It Works:](https://github.com/CeyniPBH/GroupsApp-backend/edit/main/HowItWorks.md/)**
 
 ### Deployed/Distributed Version.
 - **Changes from Monolith:**
