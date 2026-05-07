@@ -50,7 +50,7 @@ A Node.js backend for a group messaging app (similar to WhatsApp), handling auth
   - Cloud-ready with AWS (S3, EC2/EKS).
 - **Benefits:** Scalable, resilient, efficient (smaller repo, faster builds).
 
-- **[How It Works.](https://github.com/CeyniPBH/GroupsApp-backend/edit/main/HowItWorks.md/)**
+- **[How It Works.](https://github.com/CeyniPBH/GroupsApp-backend/blob/main/HowItWorks.md)**
 
 ## Installation & Usage.
 
