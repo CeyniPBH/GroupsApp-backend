@@ -1,97 +1,91 @@
-# Documentación Técnica y Arquitectura - GroupsApp
+# Technical Documentation and Architecture - GroupsApp.
 
-Este documento es el manifiesto técnico del backend de **GroupsApp**. Detalla la arquitectura de software, los flujos de comunicación interna entre microservicios y el análisis de los archivos críticos del sistema.
+This document is the technical manifesto of the GroupsApp backend. It details the software architecture, the internal communication flows between microservices, and the analysis of the system’s critical files.
 
----
+## 1. System Purpose (Domain).
+**GroupsApp**is a real-time messaging platform structured to support one-to-one interactions and communities (WhatsApp/Discord style). Its core capabilities include:
+- **Identity System:**Unique users identified by a name and a tag (e.g. `user#1234`).
+- **Relationship Graphs:**Friend request system (Contacts) with `pending`, `accepted` and `blocked` states.
+- **Hybrid Communications:** Direct Messages (DMs) and Groups with membership and role systems (Admin/Member).
+- **Multimedia:** Sending text messages and file attachments (images/documents) stored in the cloud.
 
-## 1. Propósito del Sistema (Domain)
 
-**GroupsApp** es una plataforma de mensajería en tiempo real estructurada con soporte para interacciones uno-a-uno y comunidades (estilo WhatsApp/Discord). Sus capacidades centrales incluyen:
-- **Sistema de Identidad:** Usuarios únicos identificados por un nombre y un tag (ej. `user#1234`).
-- **Grafos de Relación:** Sistema de solicitudes de amistad (Contacts) con estados de `pending`, `accepted` y `blocked`.
-- **Comunicaciones Híbridas:** Chats Directos (DM) y Grupos con sistema de membresías y roles (Admin/Member).
-- **Multimedia:** Envío de mensajes de texto y archivos adjuntos (imágenes/documentos) almacenados en la nube.
+## 2. Core Data Model (Relational Schema).
+The system state resides in PostgreSQL, orchestrated through Sequelize ORM. The main entities and their relationships are:
 
----
-
-## 2. Modelo de Datos Central (Esquema Relacional)
-
-El estado del sistema reside en PostgreSQL, orquestado a través de Sequelize ORM. Las entidades principales y sus relaciones son:
-
-- **User:** La entidad principal. Contiene `name`, `email`, `password` (hasheada) y `tag`. 
-- **Contact:** Relación autorreferencial de `User` a `User`. Define quién es amigo de quién o quién tiene bloqueado a quién.
-- **Chat:** Representa un hilo de conversación. Puede ser de tipo `direct` (2 personas) o `group` (N personas).
-- **Message:** Relacionado a un `Chat` y a un `User` (remitente). Contiene texto o referencias URL a archivos multimedia alojados en Amazon S3.
-- **Group:** Extiende la funcionalidad de un Chat cuando es comunitario. Define un `owner` (propietario) y metadatos del grupo (nombre, descripción).
-- **Membership:** Tabla pivote (Join Table) entre `User` y `Group`. Define los privilegios de un usuario en un grupo específico mediante el campo `role` (admin, member).
+- **User:** The main entity. Contains `name`, `email`, `password` (hashed) and `tag`. 
+- **Contact:** Self-referential relationship from `User` to `User`. Defines who is friends with whom or who has blocked whom.
+- **Chat:**Represents a conversation thread. Can be of type `direct` (2 people) or `group`(N people).
+- **Message:** Related to a `Chat` and a `User` (sender). Contains text or URL references to multimedia files hosted on Amazon S3.
+- **Group:**Extends the functionality of a Chat when it is community-based. Defines an `owner`and group metadata (name, description).
+- **Membership:**Pivot table (Join Table) between `User` and `Group`.Defines a user’s privileges within a specific group through the `role` field (admin, member).
 
 ---
 
-## 3. Arquitectura de Software y Flujo de Comunicación
+## 3. Software Architecture and Communication Flow.
 
-El proyecto utiliza un enfoque de **Monolito Modular desplegado como Microservicios**. Aunque el código fuente reside en un solo repositorio, `docker-compose.yml` se encarga de separar el sistema en 4 contenedores independientes que se comunican a través de la red.
+The project uses a Modular Monolith deployed as Microservices approach. Although the source code resides in a single repository, `docker-compose.yml` separates the system into 4 independent containers that communicate through the network.
 
-### ¿Cómo se comunican los componentes?
+### How do the components communicate?
 
-1. **Tráfico Externo (HTTP/REST y WebSockets):**
-   - El contenedor `api` (Express) actúa como el **API Gateway** del sistema. Recibe todas las peticiones HTTP del mundo exterior (Frontend/Postman) y gestiona las conexiones persistentes de Socket.IO.
+1. **External Traffic (HTTP/REST and WebSockets):**
+   - The `api`container (Express) acts as the system’s API Gateway. It receives all HTTP requests from the outside world (Frontend/Postman) and manages persistent Socket.IO connections.
    
-2. **Comunicación Interna (gRPC):**
-   - Para operaciones que requieren dominios diferentes, los contenedores usan **gRPC** (Remote Procedure Call de Google) sobre HTTP/2. Es mucho más rápido que REST.
-   - *Ejemplo práctico:* Cuando el Gateway (`api`) recibe la orden de "Agregar un contacto", no toca la base de datos de usuarios directamente. En su lugar, usa un cliente gRPC para preguntarle al contenedor `users-service`: *"¿Existe este usuario?"*. Si la respuesta es sí, le ordena a `chats-service`: *"Crea un chat directo"*.
+2. **Internal Communication (gRPC):**
+   - For operations that require different domains, containers use gRPC (Google Remote Procedure Call) over HTTP/2. It is much faster than REST.
+   - *Practical example:* When the Gateway (`api`)receives the command to “Add a contact”, it does not access the users database directly. Instead, it uses a gRPC client to ask the `users-service` container: *"Does this user exist?"*. If the answer is yes, it then instructs `chats-service`: *"Create a direct chat."*.
 
-3. **Sincronización de WebSockets en Entornos Distribuidos (Redis Pub/Sub):**
-   - Cuando AWS Auto Scaling crea 3 servidores (Instancias EC2), el Usuario A podría conectarse al Servidor 1 y el Usuario B al Servidor 2.
-   - Si el Usuario A envía un mensaje, el Servidor 1 usa **Redis Pub/Sub** (a través de `@socket.io/redis-adapter`) para gritar a la red: *"¡Mensaje para el chat 123!"*. El Servidor 2 lo escucha en Redis y se lo entrega al Usuario B.
-
-4. **Persistencia y Almacenamiento Estático (PostgreSQL + S3):**
-   - Las bases de datos relacionales manejan el estado del sistema. En producción, se utiliza Amazon RDS.
-   - Los archivos estáticos (Avatares, Imágenes en chats) NUNCA se guardan en el disco duro del servidor porque los contenedores son efímeros. Se envían directamente a **Amazon S3** mediante un middleware de Multer.
-
----
-
-## 4. El Ciclo de Vida de un Mensaje (WebSockets + Redis)
-
-Para entender el verdadero poder de esta arquitectura, veamos qué ocurre cuando el Usuario A envía un mensaje al Usuario B en un entorno AWS escalado a múltiples servidores:
-
-1. **Conexión:** El Usuario A abre la app y el Balanceador de Carga lo conecta al **Servidor 1**. El Usuario B hace lo mismo y cae en el **Servidor 2**.
-2. **Suscripción (Rooms):** Ambos emiten el evento `joinChat(chatId)`. Socket.IO en cada servidor los inscribe en una "sala" virtual en la memoria RAM de su respectiva instancia.
-3. **El Disparo:** Usuario A emite `sendMessage({ chatId: 123, text: 'Hola' })` al Servidor 1.
-4. **Propagación (Redis Pub/Sub):** El Servidor 1 sabe que no tiene a todos los usuarios en su RAM. Por tanto, usa el cliente `pubClient` de Redis para publicar un mensaje interno: *"Mensaje para la sala 123"*.
-5. **Recepción:** El Servidor 2, que está suscrito mediante `subClient`, escucha instantáneamente este evento de Redis.
-6. **Entrega:** El Servidor 2 busca en su RAM a los sockets conectados a la sala 123 (ahí está el Usuario B) y le envía el evento `newMessage`. ¡El mensaje es entregado en milisegundos saltando entre servidores!
+3. **WebSocket Synchronization in Distributed Environments (Redis Pub/Sub):**
+   - When AWS Auto Scaling creates 3 servers (EC2 Instances), User A may connect to Server 1 while User B connects to Server 2.
+   - If User A sends a message, Server 1 uses Redis Pub/Sub (through `@socket.io/redis-adapter`)to broadcast across the network: *"Message for chat 123!"*.Server 2 listens to Redis and delivers it to User B.
+   
+4. **Persistence and Static Storage (PostgreSQL + S3):**
+   - Relational databases handle the system state. In production, Amazon RDS is used.
+   - Static files (Avatars, Chat Images) are NEVER stored on the server’s hard drive because containers are ephemeral. Instead, they are uploaded directly to Amazon S3 through a Multer middleware.
 
 ---
 
-## 5. Análisis Hiper-Técnico de Archivos Críticos
+## 4. The Lifecycle of a Message (WebSockets + Redis).
 
-A continuación, se detalla la responsabilidad de los archivos núcleo que hacen posible esta arquitectura:
+To understand the true power of this architecture, let’s see what happens when User A sends a message to User B in an AWS environment scaled across multiple servers:
 
-### `src/app.js` (El API Gateway y Servidor WebSocket)
-- **Función Principal:** Es el punto de entrada principal para el tráfico web. Inicia Express y envuelve el servidor con HTTP para Socket.IO.
-- **Integración de Redis:** Instancia dos clientes Redis (`pubClient` y `subClient`) y los inyecta en Socket.IO para habilitar la mensajería a través de múltiples instancias en AWS.
-- **Graceful Shutdown (Apagado Seguro):** Intercepta las señales `SIGTERM` y `SIGINT` (enviadas por Docker/K8s/AWS al destruir un contenedor) para cerrar las conexiones de BD y Redis limpiamente sin cortar peticiones a medias.
-- **Control gRPC Interno:** En desarrollo local, evalúa `RUN_INTERNAL_GRPC`. Si es `true`, levanta los servidores gRPC en el mismo hilo. En Docker/AWS, esto se desactiva porque los microservicios viven en sus propios contenedores.
+1. **Connection:** User A opens the app and the Load Balancer connects them to Server 1. User B does the same and lands on **Server 2**.
+2. **Subscription (Rooms):** Both emit the `joinChat(chatId)`event. Socket.IO on each server subscribes them into a virtual “room” stored in the RAM memory of their respective instances.
+3. **Trigger:**User A emits: `sendMessage({ chatId: 123, text: 'Hola' })` to Server 1.
+4. **Propagation (Redis Pub/Sub):** Server 1 knows that not all users are connected to its RAM memory. Therefore, it uses Redis’ `pubClient` to publish an internal message: *"Mensaje para la sala 123"*.
+5. **Reception:** Server 2, which is subscribed through `subClient`, instantly receives this Redis event.
+6. **Delivery:**Server 2 looks in its RAM memory for sockets connected to room 123 (where User B is located) and emits the `newMessage`event. The message is delivered in milliseconds while hopping between servers!
 
-### `docker-compose.yml` (El Orquestador de Infraestructura)
-- **Función Principal:** Define la topología de la red. Levanta 5 piezas de infraestructura virtualizadas en una misma red puente (`groupsapp-network`):
-  - `redis`: Motor en memoria para Pub/Sub.
-  - `auth-service`, `users-service`, `chats-service`: Construyen la misma imagen de Docker pero sobreescriben el comando de inicio para ejecutar sus respectivos archivos `standalone.js`.
-  - `api`: El servidor central. Espera a que los gRPC y Redis estén listos (`depends_on`).
+---
 
-### `src/grpc/*_standalone.js` (Entrypoints de Microservicios)
-- **Archivos:** `standalone.js`, `auth_standalone.js`, `chat_standalone.js`.
-- **Función Principal:** Levantan **únicamente** un servidor TCP en un puerto específico (ej. 50051, 50052) esperando peticiones de RPC (Remote Procedure Call) generadas a partir de archivos `.proto`.
-- **Gestión de Base de Datos Segura:** Usan un operador ternario para evaluar `NODE_ENV`. Si están en producción, ejecutan `sequelize.authenticate()` en lugar de `sync()`. Esto **evita condiciones de carrera (deadlocks)** en la base de datos cuando AWS levanta múltiples contenedores simultáneamente.
+## 5. Hyper-Technical Analysis of Critical Files.
+Below is a detailed explanation of the responsibilities of the core files that make this architecture possible:
 
-### `src/modules/contacts/contact.controller.js` (Ejemplo de Orquestación)
-- **Función Principal:** Un controlador REST tradicional que actúa como director de orquesta.
-- **Flujo Técnico:** 
-  1. Recibe una petición HTTP de la `api`.
-  2. Invoca `getUserViaGrpc(contactId)` para verificar la existencia del usuario en otro microservicio de forma asíncrona.
-  3. Actualiza el estado en la base de datos local (PostgreSQL).
-  4. Invoca `createChatViaGrpc(...)` para pedirle al servicio de Chats que instancie la sala de chat de Socket.IO en la BD.
+### `src/app.js` (API Gateway and WebSocket Server)
+- **Main Function:** It is the main entry point for web traffic. It initializes Express and wraps the server with HTTP for Socket.IO.
+- **Redis Integration:**Instantiates two Redis clients (`pubClient` and `subClient`) and injects them into Socket.IO to enable messaging across multiple AWS instances.
+- **Graceful Shutdown (Safe Shutdown):**Intercepts `SIGTERM` and `SIGINT` signals (sent by Docker/K8s/AWS when destroying a container) to cleanly close database and Redis connections without interrupting requests midway.
+- **Internal gRPC Control:**In local development, it evaluates `RUN_INTERNAL_GRPC`. If `true`,it starts the gRPC servers in the same thread. In Docker/AWS, this is disabled because microservices live in their own containers.
 
-### `src/config/s3.js` (Capa de Almacenamiento Distribuido)
-- **Función Principal:** Reemplaza el almacenamiento local del disco duro.
-- **Mecánica:** Utiliza `multer-s3` y el `@aws-sdk/client-s3`. Crea un stream directo desde la memoria RAM de la instancia EC2 hacia Amazon S3. Esto significa que si el contenedor se destruye 5 segundos después de la subida, la imagen ya está a salvo en la nube.
+### `docker-compose.yml` (Infrastructure Orchestrator)
+- **Main Function:** Defines the network topology. It launches 5 virtualized infrastructure components within the same bridge network (`groupsapp-network`):
+  - `redis`: In-memory engine for Pub/Sub.
+  - `auth-service`, `users-service`, `chats-service`: Build the same Docker image but override the startup command to execute their respective `standalone.js`files.
+  - `api`: The central server. Waits for gRPC services and Redis to be ready (`depends_on`).
+
+### `src/grpc/*_standalone.js` (Microservice Entrypoints)
+- **Files:** `standalone.js`, `auth_standalone.js`, `chat_standalone.js`.
+- **Main Function:** They only start a TCP server on a specific port (e.g. 50051, 50052)waiting for RPC (Remote Procedure Call) requests generated from `.proto` files.
+- **Safe Database Management:** They use a ternary operator to evaluate `NODE_ENV`.If running in production, they execute: `sequelize.authenticate()`instead of: `sync()`.This prevents race conditions (deadlocks) in the database when AWS launches multiple containers simultaneously.
+
+### `src/modules/contacts/contact.controller.js` (Orchestration Example)
+- **Main Function:** A traditional REST controller acting as an orchestra conductor.
+- **Technical Flow:** 
+  1. Receives an HTTP request from the `api`.
+  2. Invokes `getUserViaGrpc(contactId)`to asynchronously verify the user’s existence in another microservice.
+  3. Updates the state in the local database (PostgreSQL).
+  4. Invokes `createChatViaGrpc(...)` to instruct the Chats service to instantiate the Socket.IO chat room in the database.
+
+### `src/config/s3.js` (Distributed Storage Layer)
+- **Main Function:** Replaces local hard drive storage.
+- **Mechanics:** Uses `multer-s3` and `@aws-sdk/client-s3`. It creates a direct stream from the EC2 instance RAM memory to Amazon S3. This means that even if the container is destroyed 5 seconds after the upload, the image is already safely stored in the cloud.
