@@ -1,160 +1,85 @@
-# GroupsApp Backend
+# GroupsApp Backend.
 
-Un backend monolítico para una aplicación de mensajería tipo WhatsApp/Discord.
+A Node.js backend for a group messaging app (similar to WhatsApp), handling authentication, chats, contacts, groups, memberships, and messages using Express.js for REST APIs and gRPC for distributed services.
 
-## Requisitos previos
+## Deployment
+- **Monolith:** Deploy on a single server/EC2 instance.
+- **Distributed:** Use Docker images on Kubernetes clusters (EKS) with S3 for storage.
 
-- [Node.js](https://nodejs.org/) v18 o superior
-- [npm](https://www.npmjs.com/) (incluido con Node.js)
-- [PostgreSQL](https://www.postgresql.org/) v14 o superior
+## [Tecnologies](https://private-user-images.githubusercontent.com/176390796/555658973-3ea87522-cc91-40fe-bfac-e06cbff00982.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzgxMjQzMDcsIm5iZiI6MTc3ODEyNDAwNywicGF0aCI6Ii8xNzYzOTA3OTYvNTU1NjU4OTczLTNlYTg3NTIyLWNjOTEtNDBmZS1iZmFjLWUwNmNiZmYwMDk4Mi5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjYwNTA3JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI2MDUwN1QwMzIwMDdaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1hNmExOThkYThkNGI3MDc5NWU3YmNkOTMwMzQwOWIzMTYyZTY2MGZmOGVjZGQ0NmZlMWVkMTA3NTZiZjhiMjRkJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCZyZXNwb25zZS1jb250ZW50LXR5cGU9aW1hZ2UlMkZwbmcifQ.yCTJXz3lNlaIl7NhArnHLrH_ny7Zdiatkcu6rwScfqw/)
 
-## Instalación y configuración
+- `Node.js`, `Express`, `gRPC`, `Sequelize`, `Docker`, `Kubernetes`, `AWS S3`.
 
-### 1. Clonar el repositorio
+## Features.
+- User Authentication.
+- Search for users by nickname and tag.
+- Contact system (friends).
+- Individual and group chats.
+- **Cloud Storage:** Native integration with Amazon S3 for files.
+- **Distributed Architecture:** Microservices communicating via gRPC and WebSocket synchronization between instances using Redis Pub/Sub.
 
-```bash
-git clone <url-del-repo>
-cd GroupsApp-back
-```
+## Models.
+- **User**: Username, email, password, tag (Id number).
+- **Group**: Groups with owners and members.
+- **Membership**: User-group relationships with roles.
+- **Chat**: Chats (one-on-one or group).
+- **Message**: Messages with multimedia support.
+- **Contact**: Friends system.
 
-### 2. Instalar dependencias
+## Project Evolution.
+### Monolithic Version.
+- **Structure:** Single-process Node.js app with Express server and gRPC services.
+- **Components:**
+    - `app.js:` Main Express app setup.
+    - `modules:` Business logic (auth, chats, contacts, groups, messages, users).
+    - `models:` Sequelize ORM models (users, chats, messages, etc.).
+    - `grpc:` gRPC servers and clients for real-time communication.
+    - `database.js:` Database connection.
+- **How It Works:**
+  1. Run `npm start` to start the server.
+  2. Handles user auth, chat creation, messaging via REST and gRPC.
+  3. All logic in one process; scales vertically.
+- **Limitations:** No containerization, dependencies in repo (`node_modules/`), basic deployment.
 
-```bash
-npm install
-```
+### Deployed/Distributed Version.
+- **Changes from Monolith:**
+  1. Added Docker containerization (`Dockerfile`, `docker-compose.yml`, `.dockerignore`).
+  2. Removed `node_modules/` from repo (installed at build time).
+  3. Integrated AWS S3 for file storage (`s3.js`).
+  4. Updated `.env` and `.gitignore` for cloud deployment.
+  5. Documentation: `HowItWorks.md`, updated `README.md`.
+  6. Prepared for Kubernetes orchestration (pods, services, scaling).
+- **Architecture:**
+  - Microservices evolution: gRPC services can run separately.
+  - Containerized with Docker; orchestrated with K8s for horizontal scaling.
+  - Cloud-ready with AWS (S3, EC2/EKS).
+- **Benefits:** Scalable, resilient, efficient (smaller repo, faster builds).
 
-### 3. Configurar variables de entorno
+## Installation & Usage.
 
-Crea un archivo `.env` en la raíz del proyecto con el siguiente contenido:
+### Monolithic Version
+1. Clone the `main` branch.
+2. Run `npm install`.
+3. Set up database (configure `database.js`).
+4. Run `npm start` (starts Express on port 3000, gRPC on 50051).
+   
+### Distributed Version.
+1. Clone the `K8s-Deploy` branch.
+2. For local dev: `docker-compose up` (builds and runs containers).
+3. For K8s: Apply YAML manifests (e.g., `kubectl apply -f k8s/`).
+4. Configure AWS S3 in `.env`.
 
-```env
-PORT=3000
-CORS_ORIGIN=*
-JWT_SECRET=tu_secreto_jwt
+### Test Flow.
+1. **Register/Login** → Get token.
+2. **Search Users** → Find users by name or handle.
+3. **Add Contact** → Send a friend request.
+4. **Accept Contact** → Accept the request.
+5. **Create Chat** → Create a live chat.
+6. **Send Message** → Send messages.
+7. **Upload File** → Upload media files.
+8. **Create/Get Groups** → Manage groups.
 
-DB_NAME=groupsapp
-DB_USER=tu_usuario_postgres
-DB_PASSWORD=tu_contraseña_postgres
-DB_HOST=localhost
-```
+All requests include automated tests to validate responses.
 
-### 4. Crear la base de datos en PostgreSQL
-
-```bash
-psql -U tu_usuario_postgres -c "CREATE DATABASE groupsapp;"
-```
-
-### 5. Ejecutar el servidor
-
-```bash
-# Desarrollo (con hot reload)
-npm run dev
-
-# Producción
-npm start
-```
-
-El servidor quedará corriendo en `http://localhost:3000`.
-
----
-
-## Características
-
-- Autenticación de usuarios
-- Búsqueda de usuarios por nickname y tag
-- Sistema de contactos (amigos)
-- Chats individuales y grupales
-- **Almacenamiento Cloud:** Integración nativa con Amazon S3 para los archivos.
-- **Arquitectura Distribuida:** Microservicios comunicados vía gRPC y sincronización de WebSockets entre instancias mediante Redis Pub/Sub.
-
-## Estructura del Proyecto
-
-```
-src/
-├── app.js                 # Configuración principal del servidor
-├── config/
-│   ├── database.js        # Configuración de base de datos
-│   └── s3.js              # Integración con AWS
-├── grpc/                  # Microservicios TCP y clientes gRPC (Users, Auth, Chats)
-├── models/
-│   ├── index.js           # Asociaciones de modelos
-│   ├── chat.model.js      # Modelo Chat
-│   ├── contact.model.js   # Modelo Contact
-│   └── ...                # Otros modelos
-├── modules/
-│   ├── auth/              # Autenticación
-│   ├── users/             # Gestión de usuarios
-│   ├── groups/            # Grupos
-│   ├── membership/        # Membresías de grupo
-│   ├── messages/          # Mensajes
-│   ├── contacts/          # Contactos
-│   └── chats/             # Chats
-└── utils/                 # Utilidades
-```
-
-## Modelos
-
-- **User**: Usuarios con name, email, password, tag (número identificador)
-- **Group**: Grupos con owner, miembros
-- **Membership**: Relación usuario-grupo con roles
-- **Chat**: Chats (directos o grupales)
-- **Message**: Mensajes con soporte multimedia
-- **Contact**: Sistema de amigos
-
-## API Endpoints
-
-### Auth
-- POST /auth/login
-- POST /auth/register
-
-### Users
-- POST /users/search - Buscar usuario por handle (name#tag)
-- GET /users/search/name - Buscar por nombre
-
-### Contacts
-- POST /contacts - Agregar contacto
-- GET /contacts - Obtener contactos
-- PUT /contacts/:id/accept - Aceptar solicitud
-- PUT /contacts/:id/block - Bloquear
-
-### Chats
-- POST /chats - Crear chat
-- GET /chats - Obtener chats del usuario
-
-### Messages
-- POST /messages - Enviar mensaje
-- GET /messages/:chatId - Obtener mensajes de un chat
-- POST /messages/upload - Subir archivo
-
-### Groups
-- POST /groups
-- GET /groups
-- etc.
-
-## WebSockets
-
-- joinChat: Unirse a un chat
-- sendMessage: Enviar mensaje en tiempo real
-
-## Postman Collection
-
-Importa la colección y el environment desde `postman/`:
-
-1. **Collection**: `postman/collections/GroupsApp.postman_collection.json`
-2. **Environment**: `postman/environments/GroupsApp.postman_environment.json`
-
-### Flujo de Prueba:
-
-1. **Register/Login** → Obtén token
-2. **Search Users** → Encuentra usuarios por nombre o handle
-3. **Add Contact** → Envía solicitud de amistad
-4. **Accept Contact** → Acepta la solicitud
-5. **Create Chat** → Crea un chat directo
-6. **Send Message** → Envía mensajes
-7. **Upload File** → Sube archivos multimedia
-8. **Create/Get Groups** → Gestiona grupos
-
-Todas las requests incluyen tests automáticos para validar respuestas.
-
-### Estructura de la base de datos.
+### Database structure.
 <img width="711" height="760" alt="image" src="https://github.com/user-attachments/assets/d4b1cf75-8c4a-4dbf-8eb0-27b42f942943" />
