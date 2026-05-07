@@ -36,8 +36,6 @@ A Node.js backend for a group messaging app (similar to WhatsApp), handling auth
     - `grpc:` gRPC servers and clients for real-time communication.
     - `database.js:` Database connection.
 
-- **[How It Works.](https://github.com/CeyniPBH/GroupsApp-backend/edit/main/HowItWorks.md/)**
-
 ### Deployed/Distributed Version.
 - **Changes from Monolith:**
   1. Added Docker containerization (`Dockerfile`, `docker-compose.yml`, `.dockerignore`).
@@ -51,6 +49,8 @@ A Node.js backend for a group messaging app (similar to WhatsApp), handling auth
   - Containerized with Docker; orchestrated with K8s for horizontal scaling.
   - Cloud-ready with AWS (S3, EC2/EKS).
 - **Benefits:** Scalable, resilient, efficient (smaller repo, faster builds).
+
+- **[How It Works.](https://github.com/CeyniPBH/GroupsApp-backend/edit/main/HowItWorks.md/)**
 
 ## Installation & Usage.
 
