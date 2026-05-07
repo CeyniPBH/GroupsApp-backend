@@ -80,6 +80,3 @@ A Node.js backend for a group messaging app (similar to WhatsApp), handling auth
 8. **Create/Get Groups** → Manage groups.
 
 All requests include automated tests to validate responses.
-
-### Database structure.
-<img width="711" height="760" alt="image" src="https://github.com/user-attachments/assets/d4b1cf75-8c4a-4dbf-8eb0-27b42f942943" />
